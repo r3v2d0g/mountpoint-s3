@@ -16,7 +16,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
     source "$HOME/.cargo/env"
 
 # Build mountpoint-s3
-RUN git clone --recurse-submodules https://github.com/awslabs/mountpoint-s3.git && \
+RUN git clone --recurse-submodules https://github.com/r3v2d0g/mountpoint-s3.git && \
     source "$HOME/.cargo/env" && \
     cd mountpoint-s3 && \
     cargo build --release

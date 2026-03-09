@@ -187,7 +187,7 @@ Learn more in Mountpoint's configuration documentation (CONFIGURATION.md).\
     #[cfg(feature = "mem_limiter")]
     #[clap(
         long,
-        help = "Maximum memory usage target [default: 95% of total system memory with a minimum of 512 MiB]",
+        help = "Maximum memory usage target [default: 95% of total system or cgroup memory with a minimum of 512 MiB]",
         value_name = "MiB",
         value_parser = value_parser!(u64).range(512..),
         help_heading = CLIENT_OPTIONS_HEADER
@@ -487,7 +487,12 @@ impl CliArgs {
         let mut mem_limit = MINIMUM_MEM_LIMIT;
 
         let sys = System::new_with_specifics(RefreshKind::everything());
-        let default_mem_target = (sys.total_memory() as f64 * 0.95) as u64;
+        let default_mem_target = if let Some(limits) = sys.cgroup_limits() {
+            (limits.total_memory as f64 * 0.95) as u64
+        } else {
+            (sys.total_memory() as f64 * 0.95) as u64
+        };
+
         mem_limit = mem_limit.max(default_mem_target);
 
         #[cfg(feature = "mem_limiter")]
