@@ -1,20 +1,25 @@
-use std::fmt::Debug;
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{fmt::Debug, path::PathBuf, time::Duration};
 
 use anyhow::{Context as _, anyhow};
 use clap::{ArgGroup, Parser, ValueEnum, value_parser};
-use mountpoint_s3_client::config::{AWSCRT_LOG_TARGET, AddressingStyle, S3ClientAuthConfig};
-use mountpoint_s3_client::instance_info::InstanceInfo;
-use mountpoint_s3_client::user_agent::UserAgent;
-use mountpoint_s3_fs::data_cache::{CacheLimit, DataCacheConfig, DiskDataCacheConfig, ExpressDataCacheConfig};
-use mountpoint_s3_fs::fs::{CacheConfig, ServerSideEncryption, TimeToLive};
-use mountpoint_s3_fs::fuse::config::{FuseOptions, FuseSessionConfig, MountPoint};
-use mountpoint_s3_fs::logging::{LoggingConfig, prepare_log_file_name};
-use mountpoint_s3_fs::mem_limiter::MINIMUM_MEM_LIMIT;
-use mountpoint_s3_fs::s3::config::{ClientConfig, PartConfig, TargetThroughputSetting};
-use mountpoint_s3_fs::s3::{Bucket, Prefix, S3Path, S3PathError, S3Personality};
-use mountpoint_s3_fs::{S3FilesystemConfig, autoconfigure, metrics};
+use mountpoint_s3_client::{
+    config::{AWSCRT_LOG_TARGET, AddressingStyle, S3ClientAuthConfig},
+    instance_info::InstanceInfo,
+    user_agent::UserAgent,
+};
+use mountpoint_s3_fs::{
+    S3FilesystemConfig, autoconfigure,
+    data_cache::{CacheLimit, DataCacheConfig, DiskDataCacheConfig, ExpressDataCacheConfig},
+    fs::{CacheConfig, ServerSideEncryption, TimeToLive},
+    fuse::config::{FuseOptions, FuseSessionConfig, MountPoint},
+    logging::{LoggingConfig, prepare_log_file_name},
+    mem_limiter::MINIMUM_MEM_LIMIT,
+    metrics,
+    s3::{
+        Bucket, Prefix, S3Path, S3PathError, S3Personality,
+        config::{ClientConfig, PartConfig, TargetThroughputSetting},
+    },
+};
 use sysinfo::{RefreshKind, System};
 
 use crate::build_info;
@@ -193,6 +198,15 @@ Learn more in Mountpoint's configuration documentation (CONFIGURATION.md).\
         help_heading = CLIENT_OPTIONS_HEADER
     )]
     pub max_memory_target: Option<u64>,
+
+    #[clap(
+        long,
+        help = "Maximum read window size [default: 2GiB]",
+        value_name = "MiB",
+        value_parser = value_parser!(u64).range(1..),
+        help_heading = CLIENT_OPTIONS_HEADER
+    )]
+    pub max_read_window_size: Option<u64>,
 
     #[clap(
         long,
@@ -543,6 +557,14 @@ impl CliArgs {
         filesystem_config.cache_config = self.cache_config();
         filesystem_config.mem_limit = self.mem_limit();
         filesystem_config.use_upload_checksums = self.should_use_upload_checksum(s3_personality);
+
+        if let Some(size) = self.max_read_window_size {
+            let size = size * 1024 * 1024;
+            println!("max_read_window_size: {size}");
+
+            filesystem_config.prefetcher_config.max_read_window_size = size as usize;
+        }
+
         filesystem_config
     }
 
